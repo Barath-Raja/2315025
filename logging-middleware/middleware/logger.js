@@ -14,6 +14,7 @@ export const Log=async(stack, level, packageName, message)=>{
             })
         });
         const logs=await response.json()
+        console.log("Logger Response:", logs);
         if(!response.ok){
             throw new Error(`Logging failed:${response.status}`);
         }
