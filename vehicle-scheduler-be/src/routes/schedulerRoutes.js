@@ -1,7 +1,7 @@
 import express from "express";
-import {getSchedule} from "../controllers/schedulerController.js";
+import { getSchedule } from "../controllers/schedulerController.js";
 
-const router=express.Router();
+const router = express.Router();
 
 router.get("/schedule", getSchedule);
 
