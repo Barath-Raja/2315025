@@ -1,8 +1,8 @@
 import { Log } from "../../../logging-middleware/middleware/logger.js";
 
-function knapsack(vehicles, capacity) {
+function knapsack(tasks, capacity) {
 
-    const n = vehicles.length;
+    const n = tasks.length;
 
     const dp = Array.from({ length: n + 1 }, () =>
         Array(capacity + 1).fill(0)
@@ -10,21 +10,21 @@ function knapsack(vehicles, capacity) {
 
     for (let i = 1; i <= n; i++) {
 
-        const weight = vehicles[i - 1].Duration;
-        const value = vehicles[i - 1].Impact;
+        const duration = tasks[i - 1].Duration;
+        const impact = tasks[i - 1].Impact;
 
-        for (let w = 0; w <= capacity; w++) {
+        for (let hours = 0; hours <= capacity; hours++) {
 
-            if (weight <= w) {
+            if (duration <= hours) {
 
-                dp[i][w] = Math.max(
-                    value + dp[i - 1][w - weight],
-                    dp[i - 1][w]
+                dp[i][hours] = Math.max(
+                    impact + dp[i - 1][hours - duration],
+                    dp[i - 1][hours]
                 );
 
             } else {
 
-                dp[i][w] = dp[i - 1][w];
+                dp[i][hours] = dp[i - 1][hours];
 
             }
 
@@ -32,15 +32,15 @@ function knapsack(vehicles, capacity) {
 
     }
 
-    let w = capacity;
     const selectedTasks = [];
+    let hours = capacity;
 
     for (let i = n; i > 0; i--) {
 
-        if (dp[i][w] !== dp[i - 1][w]) {
+        if (dp[i][hours] !== dp[i - 1][hours]) {
 
-            selectedTasks.push(vehicles[i - 1]);
-            w -= vehicles[i - 1].Duration;
+            selectedTasks.push(tasks[i - 1]);
+            hours -= tasks[i - 1].Duration;
 
         }
 
@@ -63,25 +63,16 @@ export const getSchedule = async (req, res) => {
             "backend",
             "info",
             "handler",
-            "Schedule request received"
-        );
-
-        await Log(
-            "backend",
-            "info",
-            "handler",
-            "Fetching depots and vehicles"
+            "Received scheduling request"
         );
 
         const [depotResponse, vehicleResponse] = await Promise.all([
             fetch(process.env.DEPOTS_API, {
-                method: "GET",
                 headers: {
                     Authorization: `Bearer ${process.env.ACCESS_TOKEN}`
                 }
             }),
             fetch(process.env.VEHICLES_API, {
-                method: "GET",
                 headers: {
                     Authorization: `Bearer ${process.env.ACCESS_TOKEN}`
                 }
@@ -91,25 +82,30 @@ export const getSchedule = async (req, res) => {
         const depotData = await depotResponse.json();
         const vehicleData = await vehicleResponse.json();
 
-        await Log(
-            "backend",
-            "info",
-            "handler",
-            "Fetched depots and vehicles successfully"
-        );
+        console.log("Depots:", depotData);
+        console.log("Vehicles:", vehicleData);
 
-        const schedules = depotData.depots.map((depot) => {
+        const depots = depotData.depots || [];
+        const vehicles = vehicleData.vehicles || vehicleData;
 
-            const schedule = knapsack(
-                vehicleData.vehicles,
+        const schedules = depots.map((depot) => {
+
+            const result = knapsack(
+                vehicles,
                 depot.MechanicHours
+            );
+
+            const usedHours = result.selectedTasks.reduce(
+                (sum, task) => sum + task.Duration,
+                0
             );
 
             return {
                 depotId: depot.ID,
                 mechanicHours: depot.MechanicHours,
-                totalImpact: schedule.totalImpact,
-                selectedTasks: schedule.selectedTasks
+                usedHours,
+                totalImpact: result.totalImpact,
+                selectedTasks: result.selectedTasks.map(task => task.TaskID)
             };
 
         });
@@ -125,8 +121,7 @@ export const getSchedule = async (req, res) => {
             schedules
         });
 
-    }
-    catch (err) {
+    } catch (err) {
 
         await Log(
             "backend",
